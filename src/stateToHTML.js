@@ -30,9 +30,12 @@ type BlockRendererMap = {[blockType: string]: BlockRenderer};
 
 type StyleMap = {[styleName: string]: RenderConfig};
 
+type BlockStyleFn = (block: ContentBlock) => ?RenderConfig;
+
 type Options = {
   inlineStyles?: StyleMap;
   blockRenderers?: BlockRendererMap;
+  blockStyleFn?: BlockStyleFn;
 };
 
 const {
@@ -208,7 +211,7 @@ class MarkupGenerator {
       this.currentBlock += 1;
       return;
     }
-    this.writeStartTag(blockType);
+    this.writeStartTag(block);
     this.output.push(this.renderBlockContent(block));
     // Look ahead and see if we will nest list.
     let nextBlock = this.getNextBlock();
@@ -231,7 +234,7 @@ class MarkupGenerator {
     } else {
       this.currentBlock += 1;
     }
-    this.writeEndTag(blockType);
+    this.writeEndTag(block);
   }
 
   processBlocksAtDepth(depth: number) {
@@ -247,15 +250,30 @@ class MarkupGenerator {
     return this.blocks[this.currentBlock + 1];
   }
 
-  writeStartTag(blockType) {
-    let tags = getTags(blockType);
+  writeStartTag(block) {
+    let tags = getTags(block.getType());
+
+    let attrString;
+    if (this.options.blockStyleFn) {
+      let {attributes, style} = this.options.blockStyleFn(block) || {};
+      // Normalize `className` -> `class`, etc.
+      attributes = normalizeAttributes(attributes);
+      if (style != null) {
+        let styleAttr = styleToCSS(style);
+        attributes = (attributes == null) ? {style: styleAttr} : {...attributes, style: styleAttr};
+      }
+      attrString = stringifyAttrs(attributes);
+    } else {
+      attrString = '';
+    }
+
     for (let tag of tags) {
-      this.output.push(`<${tag}>`);
+      this.output.push(`<${tag}${attrString}>`);
     }
   }
 
-  writeEndTag(blockType) {
-    let tags = getTags(blockType);
+  writeEndTag(block) {
+    let tags = getTags(block.getType());
     if (tags.length === 1) {
       this.output.push(`</${tags[0]}>\n`);
     } else {
@@ -275,10 +293,11 @@ class MarkupGenerator {
   }
 
   closeWrapperTag() {
-    if (this.wrapperTag) {
+    let {wrapperTag} = this;
+    if (wrapperTag) {
       this.indentLevel -= 1;
       this.indent();
-      this.output.push(`</${this.wrapperTag}>\n`);
+      this.output.push(`</${wrapperTag}>\n`);
       this.wrapperTag = null;
     }
   }

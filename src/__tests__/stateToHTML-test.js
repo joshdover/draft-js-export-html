@@ -77,4 +77,37 @@ describe('stateToHTML', () => {
       '<h1>Hello <em>world</em>.</h1>'
     );
   });
+
+  it('should support custom block styles', () => {
+    let options = {
+      blockStyleFn: (block) => {
+        let alignment = block.getData ? block.getData().get('alignment') : null;
+        if (alignment) {
+          return {
+            style: {
+              textAlign: alignment,
+            },
+          };
+        }
+      },
+    };
+    let contentState1 = convertFromRaw(
+      // <h1 style="text-align: left;">Hello <em>world</em>.</h1>
+      {"entityMap":{},"blocks":[{"data":{"alignment":"left"},"key":"dn025","text":"Hello world.","type":"header-one","depth":0,"inlineStyleRanges":[{"offset":6,"length":5,"style":"ITALIC"}],"entityRanges":[]}]} // eslint-disable-line
+    );
+    if (contentState1.getFirstBlock().getData == null) {
+      // Older DraftJS does not support block.getData()
+      return;
+    }
+    expect(stateToHTML(contentState1, options)).toBe(
+      '<h1 style="text-align: left">Hello <em>world</em>.</h1>'
+    );
+    let contentState2 = convertFromRaw(
+      // <h1>Hello <em>world</em>.</h1>
+      {"entityMap":{},"blocks":[{"key":"dn025","text":"Hello world.","type":"header-one","depth":0,"inlineStyleRanges":[{"offset":6,"length":5,"style":"ITALIC"}],"entityRanges":[]}]} // eslint-disable-line
+    );
+    expect(stateToHTML(contentState2, options)).toBe(
+      '<h1>Hello <em>world</em>.</h1>'
+    );
+  });
 });
